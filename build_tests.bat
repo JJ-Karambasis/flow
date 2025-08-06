@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 
 set base_path=%~dp0
 set bin_path=%base_path%\bin
+set base_lib_path=%base_path%\..\base
 
 set build_debug=0
 set build_clang=0
@@ -24,9 +25,21 @@ if /i "%~1"=="-asan" (
 	set build_asan=1
 )
 
+if /i "%~1"=="-base_lib_path" (
+	set base_lib_path="%~2"
+	shift
+)
+
 shift
 goto cmd_line
 :end_cmd_line
+
+set parameters=-bin_path %bin_path%
+if %build_debug% == 1 (
+	set parameters=%parameters% -debug
+)
+
+call %base_lib_path%\build.bat %parameters%
 
 if not exist "%bin_path%" (
 	mkdir "%bin_path%"
@@ -47,7 +60,7 @@ if %build_asan% == 1 (
 	)
 )
 
-set app_includes=-I%base_path%
+set app_includes=-I%base_path% -I%base_lib_path%\code
 set app_defines=-DFLOW_IMPLEMENTATION
 
 if %build_debug% == 1 (
@@ -70,7 +83,7 @@ set clang_link=
 
 set msvc_dll=-LD
 set msvc_compile_only=/c
-set msvc_warnings=/Wall /WX /wd4514 /wd5045
+set msvc_warnings=/Wall /WX /wd4514 /wd5045 /wd4668 /wd4255 /wd4820 /wd5246
 set msvc_flags=/nologo /FC /Z7 /experimental:c11atomics %msvc_optimized_flag%
 set msvc_out=/out:
 set msvc_link=/link /opt:ref /incremental:no
@@ -88,8 +101,8 @@ if %build_clang% == 1 (
 	set compile_out=%clang_out%
 	set compile_dll=%clang_dll%
 	set compile_link=%clang_link%
-	set compiler_c=clang -std=c11
-	set compiler_cpp=clang++ -std=c++20
+	set compiler_c=clang -std=c99
+	set compiler_cpp=clang++ -std=c++14
 )
 
 if %build_clang% == 0 (
@@ -101,10 +114,13 @@ if %build_clang% == 0 (
 	set compile_dll=%msvc_dll%
 	set compile_link=%msvc_link%
 	set compiler_c=cl /std:c11
-	set compiler_cpp=cl /std:c++20
+	set compiler_cpp=cl /std:c++14
 )
 
 pushd "%bin_path%"
 	%compiler_c% %compile_flags% %compile_warnings% %app_defines% %app_includes% "%base_path%/tests/c_tests.c" %compile_link% %compile_out%c_tests.exe
 	%compiler_cpp% %compile_flags% %compile_warnings% %app_defines% %app_includes% "%base_path%/tests/cpp_tests.cpp" %compile_link% %compile_out%cpp_tests.exe
+
+	%compiler_c% %compile_flags% %compile_warnings% %app_defines% %app_includes% -DFLOW_USE_F64 "%base_path%/tests/c_tests.c" %compile_link% %compile_out%c_tests64.exe
+	%compiler_cpp% %compile_flags% %compile_warnings% %app_defines% %app_includes% -DFLOW_USE_F64 "%base_path%/tests/cpp_tests.cpp" %compile_link% %compile_out%cpp_tests64.exe
 popd
